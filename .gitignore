@@ -1,0 +1,13 @@
+# MySQL
+data/
+*.sock
+
+# Node
+node_modules/
+
+# Expo
+.expo/
+.expo-shared/
+
+# Logs
+*.log

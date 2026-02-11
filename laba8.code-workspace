@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"name": "laba8",
+			"path": "."
+		},
+		{
+			"name": "images",
+			"path": "../laba6-7/src/images"
+		}
+	],
+	"settings": {}
+}

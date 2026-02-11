@@ -1,0 +1,45 @@
+body {
+    font-family: Arial, sans-serif;
+    background: #0004ff;
+    margin: 0;
+}
+
+.houses {
+    max-width: 1100px;
+    margin: 40px auto;
+}
+
+.houses-list {
+    display: grid;
+    grid-template-columns: 3fr;
+    gap: 12px;
+}
+
+.house {
+    background: #fff;
+    border: 1px solid #ddd;
+    padding: 20px;
+    border-radius: 10px;
+}
+
+.house img {
+    width: 100%;
+    border-radius: 8px;
+}
+
+.load-more {
+    margin: 40px 0;
+    text-align: center;
+}
+
+button {
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #45a049;
+}
