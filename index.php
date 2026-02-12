@@ -1,78 +1,75 @@
 <?php
-include 'about.php';
-include 'footer.php';
 include 'house.php';
 include 'contact.php';
+include 'about.php';
+include 'footer.php';
 
+// --- Налаштування з'єднання з MySQL ---
+$host = 'db'; // назва сервісу MySQL у docker-compose
+$user = 'root';
+$pass = 'rootpassword';
+$db = 'real_estate';
 
-$host = "localhost";       
-$user = "root";            
-$pass = "rootpassword";    
-$db = "real_estate";       
+// --- Створюємо з'єднання ---
+$conn = mysqli_connect($host, $user, $pass, $db);
 
-$conn = new mysqli($host, $user, $pass, $db);
-
-
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
-
-
-$conn = mysql_connect('localhost', 'root', 'rootpassword');  
 if (!$conn) {
-    die('Could not connect: ' . mysql_error());
+    die("Connection failed: " . mysqli_connect_error());
 }
-mysql_select_db('real_estate', $conn); 
 
+// --- Параметри пагінації будинків ---
 $housesCount = isset($_GET['houses']) ? (int)$_GET['houses'] : 3;
 $more = $housesCount + 3;
 $less = max($housesCount - 3, 3);
 
-$houses = getHouses();
+// --- Отримуємо будинки з бази ---
+$houses = getHouses($housesCount);
 
+// --- Обробка форми Contact Me ---
 $contact = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    
-    $name = mysql_real_escape_string($_POST['name']);
-    $email = mysql_real_escape_string($_POST['email']);
-    $phone = mysql_real_escape_string($_POST['phone']);
-    $message = mysql_real_escape_string($_POST['message']);
-    $dob = mysql_real_escape_string($_POST['dob']);
-    
-    
+    $name = mysqli_real_escape_string($conn, $_POST['name']);
+    $email = mysqli_real_escape_string($conn, $_POST['email']);
+    $phone = mysqli_real_escape_string($conn, $_POST['phone']);
+    $message = mysqli_real_escape_string($conn, $_POST['message']);
+    $dob = mysqli_real_escape_string($conn, $_POST['dob']);
+
+    $errors = [];
+
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        echo "<p>Invalid email format</p>";
+        $errors[] = "Невірний формат email";
     }
 
-    
     if (strtotime($dob) > time()) {
-        echo "<p>Date of birth cannot be in the future.</p>";
+        $errors[] = "Дата народження не може бути в майбутньому";
     }
 
- 
-    if (filter_var($email, FILTER_VALIDATE_EMAIL) && strtotime($dob) <= time()) {
+    if (empty($errors)) {
         $query = "INSERT INTO contacts (name, email, phone, message, dob) 
                   VALUES ('$name', '$email', '$phone', '$message', '$dob')";
-        $result = mysql_query($query, $conn);
-
-        if ($result) {
-            echo "<p>Contact information has been saved successfully!</p>";
+        if (mysqli_query($conn, $query)) {
+            echo "<p style='color:green;'>Контактні дані успішно збережено!</p>";
+            $contact = new ContactInformation($name, $email, $phone, $message, $dob);
         } else {
-            echo "<p>Error saving contact information: " . mysql_error() . "</p>";
+            echo "<p style='color:red;'>Помилка збереження: " . mysqli_error($conn) . "</p>";
+        }
+    } else {
+        foreach ($errors as $err) {
+            echo "<p style='color:red;'>$err</p>";
         }
     }
 }
 
 $location = "RIVNE, Ukraine";
 
+// --- Функція для розрахунку середньої довжини полів форми ---
 function calculateAverageLength($data) {
     $totalLength = 0;
-    $fieldCount = 0;
+    $fieldCount = count($data);
 
     foreach ($data as $field) {
         $totalLength += strlen($field);
-        $fieldCount++;
     }
 
     return $fieldCount > 0 ? round($totalLength / $fieldCount) : 0;
@@ -97,19 +94,16 @@ function calculateAverageLength($data) {
     <h2>Our Houses</h2>
 
     <div class="houses-list">
-        <?php foreach ($houses as $house): 
-            $prices = getDiscountedPrice($house->price); ?>
-            
-             <div class="house">
-                <h3><?= $house['name'] ?></h3>
-                <img src="<?= $house['image'] ?>" alt="<?= $house['name'] ?>">
-                <p>Address: <?= $house['address'] ?></p>
-                <p>Phone: <?= $house['phone'] ?></p>
-                <p>Bedrooms: <?= $house['bedrooms'] ?></p>
-                <p>Bathrooms: <?= $house['bathrooms'] ?></p>
-                <p>Price: <?= number_format($house['price'], 0) ?></p>
+        <?php foreach ($houses as $house): ?>
+            <div class="house">
+                <h3><?= htmlspecialchars($house['name']) ?></h3>
+                <img src="./images/image.jpg" alt="House Image">
+                <p>Address: <?= htmlspecialchars($house['address']) ?></p>
+                <p>Phone: <?= htmlspecialchars($house['phone']) ?></p>
+                <p>Bedrooms: <?= htmlspecialchars($house['bedrooms']) ?></p>
+                <p>Bathrooms: <?= htmlspecialchars($house['bathrooms']) ?></p>
+                <p>Price: <?= number_format($house['price'], 0) ?> USD</p>
             </div>
-
         <?php endforeach; ?>
     </div>
 
@@ -119,7 +113,6 @@ function calculateAverageLength($data) {
             <a href="?houses=<?= $less ?>"><button>Показати менше</button></a>
         <?php endif; ?>
     </div>
-
 </section>
 
 <section class="contact">
@@ -137,10 +130,8 @@ function calculateAverageLength($data) {
 
     <?php
     if ($contact) {
-        
         echo $contact->formatAsTable();
 
-        a
         $formData = [
             $_POST['name'],
             $_POST['email'],
