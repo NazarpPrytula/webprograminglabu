@@ -11,16 +11,16 @@ $pass = 'rootpassword';
 $db = 'real_estate';
 
 $conn = mysqli_connect($host, $user, $pass, $db);
-mysqli_set_charset($conn, "utf8mb4");
-
-if (!$conn) {
+if ($conn) {
+    mysqli_set_charset($conn, "utf8mb4");
+} else {
     die("Connection failed: " . mysqli_connect_error());
 }
 
-// --- Завдання 8: Генерація CSV звіту ---
+//  CSV 
 if (isset($_POST['get_report'])) {
-    $start = $_POST['start_date'];
-    $end = $_POST['end_date'];
+    $start = $_POST['start_date'] ?? '';
+    $end = $_POST['end_date'] ?? '';
     
     $query = "SELECT name, price, sold_at FROM houses WHERE is_sold = 1 AND sold_at BETWEEN '$start 00:00:00' AND '$end 23:59:59'";
     $result = mysqli_query($conn, $query);
@@ -29,8 +29,7 @@ if (isset($_POST['get_report'])) {
     header('Content-Disposition: attachment; filename="sales_report.csv"');
     
     $output = fopen('php://output', 'w');
-    // Додаємо BOM для коректного відображення кирилиці в Excel
-    fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
+    fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF)); // BOM для Excel
     
     fputcsv($output, ['Назва будинку', 'Ціна (USD)', 'Дата продажу']);
     while ($row = mysqli_fetch_assoc($result)) {
@@ -40,7 +39,7 @@ if (isset($_POST['get_report'])) {
     exit;
 }
 
-// --- Параметри пагінації та фільтрації ---
+// фільтрації ---
 $housesCount = isset($_GET['houses']) ? (int)$_GET['houses'] : 3;
 $filters = [
     'search' => $_GET['search'] ?? '',
@@ -51,7 +50,7 @@ $filters = [
 $more = $housesCount + 3;
 $less = max($housesCount - 3, 3);
 
-// Отримуємо дані
+// Отримуємо дані з house.php
 $houses = getHouses($housesCount, $filters);
 $featuredHouses = getFeaturedHouses();
 $categories = getCategories();
@@ -67,8 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['name'])) {
 
     $errors = [];
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = "Невірний формат email";
-    if (strtotime($dob) > time()) $errors[] = "Дата народження не може бути в майбутньому";
-
+    
     if (empty($errors)) {
         $query = "INSERT INTO contacts (name, email, phone, message, dob) VALUES ('$name', '$email', '$phone', '$message', '$dob')";
         if (mysqli_query($conn, $query)) {
@@ -81,8 +79,13 @@ $location = "RIVNE, Ukraine";
 
 function calculateAverageLength($data) {
     $totalLength = 0;
-    $fieldCount = count($data);
-    foreach ($data as $field) { $totalLength += strlen($field); }
+    $fieldCount = 0;
+    foreach ($data as $field) { 
+        if ($field !== null) {
+            $totalLength += strlen((string)$field); 
+            $fieldCount++;
+        }
+    }
     return $fieldCount > 0 ? round($totalLength / $fieldCount) : 0;
 }
 ?>
@@ -91,30 +94,29 @@ function calculateAverageLength($data) {
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <title>Real Estate Elite</title>
+    <title>Real Estate Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="./styles.css">
 </head>
 <body class="bg-gray-50 text-gray-900">
 
 <div class="container mx-auto p-6">
-    <h1 class="text-4xl font-bold text-center my-8">Welcome to Our Real Estate Website</h1>
-    <div class="bg-white p-6 rounded-lg shadow-md mb-10">
+    <h1 class="text-4xl font-extrabold text-center my-8 text-blue-900">Real Estate Agency</h1>
+    <div class="bg-white p-6 rounded-xl shadow-sm mb-10 border border-gray-100">
         <?php echo getAboutBlock(); ?>
     </div>
 </div>
 
 <?php if (!empty($featuredHouses)): ?>
-<section class="bg-slate-800 py-12 mb-12">
+<section class="bg-slate-900 py-12 mb-12 shadow-inner">
     <div class="container mx-auto px-6">
-        <h2 class="text-3xl font-bold text-white mb-6 text-center">🔥 Гарячі пропозиції</h2>
-        <div class="flex overflow-x-auto pb-4 gap-6 snap-x">
+        <h2 class="text-3xl font-bold text-white mb-6 underline decoration-blue-500">Популярні об'єкти</h2>
+        <div class="flex overflow-x-auto pb-6 gap-6 snap-x scrollbar-hide">
             <?php foreach ($featuredHouses as $f): ?>
-                <div class="min-w-[320px] bg-white rounded-xl shadow-2xl overflow-hidden snap-center transform hover:scale-105 transition">
-                    <img src="./images/image.jpg" class="w-full h-48 object-cover">
+                <div class="min-w-[300px] bg-white rounded-xl shadow-lg overflow-hidden snap-center transform hover:scale-105 transition duration-300">
+                    <img src="./images/image.jpg" class="w-full h-40 object-cover" alt="house">
                     <div class="p-4">
-                        <h3 class="font-bold text-xl"><?= htmlspecialchars($f['name']) ?></h3>
-                        <p class="text-blue-600 font-bold text-lg"><?= number_format($f['price']) ?> USD</p>
+                        <h3 class="font-bold text-lg text-gray-800"><?= htmlspecialchars($f['name'] ?? 'Будинок') ?></h3>
+                        <p class="text-blue-600 font-bold text-xl"><?= number_format((float)($f['price'] ?? 0)) ?> USD</p>
                     </div>
                 </div>
             <?php endforeach; ?>
@@ -124,59 +126,62 @@ function calculateAverageLength($data) {
 <?php endif; ?>
 
 <section class="container mx-auto px-6 mb-12">
-    <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-        <h2 class="text-xl font-bold mb-4">Пошук нерухомості</h2>
+    <div class="bg-white p-8 rounded-2xl shadow-xl border border-blue-50">
+        <h2 class="text-2xl font-bold mb-6 text-gray-800">Швидкий пошук</h2>
         <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <input type="text" name="search" placeholder="Назва будинку..." value="<?= htmlspecialchars($filters['search']) ?>" class="border p-3 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+            <input type="text" name="search" placeholder="Назва..." value="<?= htmlspecialchars($filters['search'] ?? '') ?>" class="border-2 border-gray-100 p-3 rounded-xl focus:border-blue-400 outline-none transition">
             
-            <select name="category" class="border p-3 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+            <select name="category" class="border-2 border-gray-100 p-3 rounded-xl focus:border-blue-400 outline-none transition">
                 <option value="">Всі категорії</option>
                 <?php foreach ($categories as $cat): ?>
-                    <option value="<?= $cat['id'] ?>" <?= $filters['category'] == $cat['id'] ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($cat['name']) ?>
+                    <option value="<?= $cat['id'] ?>" <?= ($filters['category'] == $cat['id']) ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($cat['name'] ?? '') ?>
                     </option>
                 <?php endforeach; ?>
             </select>
 
             <div class="flex flex-col">
-                <label class="text-sm font-medium">Макс. ціна: <span class="text-blue-600 font-bold" id="priceLabel"><?= number_format($filters['max_price']) ?></span> USD</label>
-                <input type="range" name="max_price" min="0" max="1000000" step="10000" value="<?= $filters['max_price'] ?>" class="mt-2" oninput="document.getElementById('priceLabel').innerText = Number(this.value).toLocaleString()">
+                <label class="text-xs font-semibold text-gray-500 uppercase">Ціна до: <span class="text-blue-600 text-sm" id="pLab"><?= number_format($filters['max_price']) ?></span></label>
+                <input type="range" name="max_price" min="0" max="1000000" step="10000" value="<?= $filters['max_price'] ?>" class="mt-2 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" oninput="document.getElementById('pLab').innerText = Number(this.value).toLocaleString()">
             </div>
 
-            <button type="submit" class="bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition">Застосувати фільтри</button>
+            <button type="submit" class="bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition">Знайти</button>
         </form>
     </div>
 </section>
 
 <section class="container mx-auto px-6 mb-12">
-    <h2 class="text-3xl font-bold mb-8">Наші будинки</h2>
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
         <?php foreach ($houses as $house): ?>
-            <div class="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100 relative hover:shadow-xl transition">
-                <?php if ($house['is_sold']): ?>
-                    <div class="absolute top-0 right-0 bg-red-600 text-white px-4 py-1 font-bold z-10 shadow-lg">
-                        ПРОДАНО (<?= date('d.m.Y', strtotime($house['sold_at'])) ?>)
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden relative group hover:shadow-2xl transition duration-500">
+                <?php if (!empty($house['is_sold'])): ?>
+                    <div class="absolute top-4 right-4 bg-red-600 text-white px-3 py-1 rounded-lg font-bold text-sm z-10 rotate-3 shadow-md">
+                        ПРОДАНО <?= !empty($house['sold_at']) ? date('d.m.y', strtotime($house['sold_at'])) : '' ?>
                     </div>
                 <?php endif; ?>
                 
-                <img src="./images/image.jpg" class="w-full h-56 object-cover">
+                <div class="overflow-hidden">
+                    <img src="./images/image.jpg" class="w-full h-64 object-cover group-hover:scale-110 transition duration-500">
+                </div>
                 
                 <div class="p-6">
-                    <span class="text-xs font-bold text-blue-500 uppercase tracking-widest"><?= htmlspecialchars($house['category_name']) ?></span>
-                    <h3 class="text-2xl font-bold mt-1 mb-3"><?= htmlspecialchars($house['name']) ?></h3>
+                    <span class="bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-tighter">
+                        <?= htmlspecialchars($house['category_name'] ?? 'Нерухомість') ?>
+                    </span>
+                    <h3 class="text-2xl font-bold mt-2 text-gray-800"><?= htmlspecialchars($house['name'] ?? 'Без назви') ?></h3>
                     
-                    <div class="grid grid-cols-2 gap-2 text-sm text-gray-600 mb-4">
-                        <p>🛏️ <?= htmlspecialchars($house['bedrooms']) ?> Сільні</p>
-                        <p>🚿 <?= htmlspecialchars($house['bathrooms']) ?> Ванні</p>
+                    <div class="flex gap-4 mt-3 text-gray-500 text-sm">
+                        <span>🛏️ <?= (int)($house['bedrooms'] ?? 0) ?></span>
+                        <span>🚿 <?= (int)($house['bathrooms'] ?? 0) ?></span>
                     </div>
 
-                    <div class="flex items-center justify-between mt-6">
-                        <p class="text-2xl font-bold text-gray-900"><?= number_format($house['price']) ?> <span class="text-sm font-normal">USD</span></p>
+                    <div class="flex items-center justify-between mt-8">
+                        <span class="text-2xl font-black text-gray-900">$<?= number_format((float)($house['price'] ?? 0)) ?></span>
                         
                         <form method="POST" action="house.php">
                             <input type="hidden" name="like_house_id" value="<?= $house['id'] ?>">
-                            <button type="submit" class="flex items-center gap-2 px-4 py-2 rounded-full border border-pink-100 text-pink-600 hover:bg-pink-50 transition">
-                                <span>❤️</span> <b><?= $house['likes'] ?></b>
+                            <button type="submit" class="flex items-center gap-2 px-5 py-2 rounded-xl bg-pink-50 text-pink-600 font-bold hover:bg-pink-100 transition">
+                                ❤️ <?= (int)($house['likes'] ?? 0) ?>
                             </button>
                         </form>
                     </div>
@@ -185,56 +190,50 @@ function calculateAverageLength($data) {
         <?php endforeach; ?>
     </div>
 
-    <div class="flex justify-center gap-4 mt-12">
-        <a href="?houses=<?= $more ?>&search=<?= $filters['search'] ?>&max_price=<?= $filters['max_price'] ?>&category=<?= $filters['category'] ?>" class="bg-gray-800 text-white px-8 py-3 rounded-lg font-bold hover:bg-gray-900">Показати більше</a>
+    <div class="flex justify-center gap-6 mt-16">
+        <a href="?houses=<?= $more ?>&search=<?= urlencode($filters['search']) ?>&max_price=<?= $filters['max_price'] ?>&category=<?= $filters['category'] ?>" class="bg-gray-900 text-white px-10 py-4 rounded-2xl font-bold hover:bg-black transition shadow-xl">Більше об'єктів</a>
         <?php if($housesCount > 3): ?>
-            <a href="?houses=<?= $less ?>&search=<?= $filters['search'] ?>&max_price=<?= $filters['max_price'] ?>&category=<?= $filters['category'] ?>" class="border-2 border-gray-800 text-gray-800 px-8 py-3 rounded-lg font-bold hover:bg-gray-100">Показати менше</a>
+            <a href="?houses=<?= $less ?>&search=<?= urlencode($filters['search']) ?>&max_price=<?= $filters['max_price'] ?>&category=<?= $filters['category'] ?>" class="bg-white border-2 border-gray-900 px-10 py-4 rounded-2xl font-bold hover:bg-gray-50 transition">Менше</a>
         <?php endif; ?>
     </div>
 </section>
 
 <section class="container mx-auto px-6 mb-20">
-    <div class="bg-green-50 p-8 rounded-2xl border-2 border-green-100">
-        <h2 class="text-2xl font-bold text-green-800 mb-4">📊 Фінансова звітність</h2>
-        <p class="text-green-700 mb-6">Виберіть період для вивантаження звіту по проданим об'єктам у форматі CSV.</p>
-        <form method="POST" class="flex flex-wrap gap-4 items-end">
-            <div>
-                <label class="block text-sm font-medium text-green-800">Від:</label>
-                <input type="date" name="start_date" required class="border-green-200 border p-3 rounded-lg">
+    <div class="bg-gradient-to-r from-green-600 to-emerald-700 p-10 rounded-3xl shadow-2xl text-white">
+        <h2 class="text-3xl font-bold mb-2">Генератор звітів</h2>
+        <p class="opacity-80 mb-8 font-light text-lg">Виберіть часовий проміжок для експорту даних у CSV</p>
+        <form method="POST" class="flex flex-wrap gap-6 items-end">
+            <div class="flex flex-col gap-2">
+                <label class="text-sm font-bold opacity-90">Дата початку</label>
+                <input type="date" name="start_date" required class="p-3 rounded-xl text-gray-900 outline-none">
             </div>
-            <div>
-                <label class="block text-sm font-medium text-green-800">До:</label>
-                <input type="date" name="end_date" required class="border-green-200 border p-3 rounded-lg">
+            <div class="flex flex-col gap-2">
+                <label class="text-sm font-bold opacity-90">Дата завершення</label>
+                <input type="date" name="end_date" required class="p-3 rounded-xl text-gray-900 outline-none">
             </div>
-            <button type="submit" name="get_report" class="bg-green-600 text-white font-bold px-8 py-3 rounded-lg hover:bg-green-700 transition shadow-lg">Згенерувати звіт (.csv)</button>
+            <button type="submit" name="get_report" class="bg-white text-green-700 font-black px-10 py-3 rounded-xl hover:bg-green-50 transition transform active:scale-95 shadow-lg">Скачати CSV</button>
         </form>
     </div>
 </section>
 
-<section class="bg-white py-16">
+<section class="bg-white py-12 border-t border-gray-100">
     <div class="container mx-auto px-6 max-w-4xl">
-        <h2 class="text-3xl font-bold mb-8 text-center">Contact Me</h2>
-        <form method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <input type="text" name="name" placeholder="Name" required class="border p-4 rounded-lg">
-            <input type="email" name="email" placeholder="Email" required class="border p-4 rounded-lg">
-            <input type="date" name="dob" placeholder="Date of Birth" required class="border p-4 rounded-lg">
-            <input type="text" name="phone" placeholder="Phone" required class="border p-4 rounded-lg">
-            <textarea name="message" placeholder="Message" required class="border p-4 rounded-lg md:col-span-2 h-32"></textarea>
-            <div class="md:col-span-2 flex gap-4">
-                <button type="submit" class="bg-blue-600 text-white font-bold py-4 px-8 rounded-lg flex-1">Send Message</button>
-                <button type="reset" class="bg-gray-200 font-bold py-4 px-8 rounded-lg">Clear</button>
+        <h2 class="text-3xl font-bold mb-8 text-center text-gray-800">Зворотній зв'язок</h2>
+        <form method="POST" class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <input type="text" name="name" placeholder="Ваше ім'я" required class="w-full border-2 border-gray-50 p-4 rounded-2xl focus:border-blue-200 outline-none bg-gray-50">
+                <input type="email" name="email" placeholder="Email" required class="w-full border-2 border-gray-50 p-4 rounded-2xl focus:border-blue-200 outline-none bg-gray-50">
+                <input type="date" name="dob" required class="w-full border-2 border-gray-50 p-4 rounded-2xl focus:border-blue-200 outline-none bg-gray-50 text-gray-500">
+                <input type="text" name="phone" placeholder="Телефон" required class="w-full border-2 border-gray-50 p-4 rounded-2xl focus:border-blue-200 outline-none bg-gray-50">
             </div>
+            <textarea name="message" placeholder="Ваше повідомлення..." required class="w-full border-2 border-gray-50 p-4 rounded-2xl h-40 focus:border-blue-200 outline-none bg-gray-50"></textarea>
+            <button type="submit" class="w-full bg-blue-600 text-white font-bold py-5 rounded-2xl hover:bg-blue-700 transition shadow-lg shadow-blue-100">Надіслати запит</button>
         </form>
 
         <?php if ($contact): ?>
-            <div class="mt-10 p-6 bg-blue-50 rounded-xl border border-blue-100">
-                <h3 class="text-lg font-bold mb-4">Дані відправлено:</h3>
+            <div class="mt-12 p-8 bg-blue-50 rounded-3xl border-2 border-blue-100 animate-pulse">
+                <h3 class="text-xl font-bold mb-4 text-blue-800 italic">Дякуємо! Ми отримали ваші дані:</h3>
                 <?= $contact->formatAsTable() ?>
-                <?php 
-                    $formData = [$_POST['name'], $_POST['email'], $_POST['dob'], $_POST['phone'], $_POST['message']];
-                    $averageLength = calculateAverageLength($formData);
-                    echo "<p class='mt-4 font-medium'>Середня довжина даних: {$averageLength} символів</p>";
-                ?>
             </div>
         <?php endif; ?>
     </div>
